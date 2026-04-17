@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "134713425456",
+    "project_id": "alohi-35081",
+    "storage_bucket": "alohi-35081.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:134713425456:android:611920afe38adc0f31b7f5",
+        "android_client_info": {
+          "package_name": "com.example.alohi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2XZGJyHJKEuFjpJPpNelZr2QWqoyCXNc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
