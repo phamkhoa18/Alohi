@@ -59,6 +59,12 @@ data class VerifyOtpRequest(
     val code: String,
 )
 
+data class ResetPasswordRequest(
+    val phone: String,
+    val otpCode: String,
+    val newPassword: String
+)
+
 /** POST /api/auth/register */
 data class RegisterRequest(
     val phone: String,
@@ -405,4 +411,62 @@ data class ForwardMessageRequest(
 /** POST /api/messages/:messageId/react */
 data class ReactMessageRequest(
     val emoji: String,
+)
+
+// ═══════════════════════════════════════════════════════
+// Story Models
+// ═══════════════════════════════════════════════════════
+
+data class StoriesFeedResponse(
+    val myStories: List<StoryGroup>? = null,
+    val friendsStories: List<StoryGroup>? = null,
+)
+
+data class StoryGroup(
+    val author: UserProfile,   // Use common UserProfile
+    val stories: List<StoryItem>,
+    val hasUnread: Boolean? = true,
+)
+
+data class StoryItem(
+    @SerializedName("_id")
+    val id: String,
+    val author: UserProfile? = null,
+    val type: String? = "image", // image, video, text
+    val content: StoryContent? = null,
+    val media: StoryMedia? = null,
+    val caption: String? = null,
+    val music: StoryMusic? = null,
+    val privacy: String? = "friends",
+    val isActive: Boolean? = true,
+    val createdAt: String? = null,
+    val expiresAt: String? = null,
+    var viewers: List<StoryViewer>? = null,
+    var viewCount: Int? = 0,
+)
+
+data class StoryContent(
+    val text: String? = null,
+    val backgroundColor: String? = null,
+    val fontFamily: String? = null,
+    val textColor: String? = null,
+)
+
+data class StoryMedia(
+    val url: String? = null,
+    val publicId: String? = null,
+    val thumbnailUrl: String? = null,
+    val duration: Long? = null,
+)
+
+data class StoryMusic(
+    val name: String? = null,
+    val artist: String? = null,
+    val url: String? = null,
+)
+
+data class StoryViewer(
+    val user: UserProfile? = null,
+    val viewedAt: String? = null,
+    val reaction: String? = null,
 )

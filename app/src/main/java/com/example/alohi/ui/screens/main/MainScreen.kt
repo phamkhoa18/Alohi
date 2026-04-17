@@ -43,6 +43,8 @@ fun MainScreen(
     onNavigateToAddFriend: () -> Unit = {},
     onNavigateToCreateGroup: () -> Unit = {},
     onLogout: () -> Unit = {},
+    onNavigateToCreateStory: () -> Unit = {},
+    onNavigateToStoryViewer: (String) -> Unit = {}
 ) {
     // API requests are already handled by MainViewModel's init block,
     // so we don't need a LaunchedEffect here to avoid duplicate fetches on back-navigation.
@@ -82,7 +84,9 @@ fun MainScreen(
                     mainViewModel = mainViewModel,
                     onChatClick = onChatClick,
                     onCreateGroupClick = onNavigateToCreateGroup,
-                    onRefresh = { mainViewModel.loadConversations() }
+                    onRefresh = { mainViewModel.loadConversations() },
+                    onNavigateToCreateStory = onNavigateToCreateStory,
+                    onNavigateToStoryViewer = onNavigateToStoryViewer
                 )
                 1 -> ContactsScreen(
                     friends = uiState.friends,

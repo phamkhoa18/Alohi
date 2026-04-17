@@ -15,11 +15,14 @@ sealed class Screen(val route: String) {
     data object Splash : Screen("splash")
     data object Onboarding : Screen("onboarding")
     data object Login : Screen("login")
-    data object Otp : Screen("otp/{phone}") {
-        fun createRoute(phone: String) = "otp/$phone"
+    data object Otp : Screen("otp/{phone}/{flow}") {
+        fun createRoute(phone: String, flow: String = "register") = "otp/$phone/$flow"
     }
     data object Register : Screen("register/{phone}") {
         fun createRoute(phone: String) = "register/$phone"
+    }
+    data object ResetPassword : Screen("reset_password/{phone}") {
+        fun createRoute(phone: String) = "reset_password/$phone"
     }
     data object SetupProfile : Screen("setup_profile")
 
@@ -73,5 +76,11 @@ sealed class Screen(val route: String) {
             val encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8.toString())
             return "video_call/$userId/$encodedName"
         }
+    }
+
+    // ── Story ──
+    data object CreateStory : Screen("create_story")
+    data object StoryViewer : Screen("story_viewer/{authorId}") {
+        fun createRoute(authorId: String) = "story_viewer/$authorId"
     }
 }

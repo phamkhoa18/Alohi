@@ -37,7 +37,7 @@ object ApiClient {
         val request = chain.request()
 
         // Skip auth for public endpoints
-        val publicPaths = listOf("auth/send-otp", "auth/verify-otp", "auth/register", "auth/login", "auth/refresh-token")
+        val publicPaths = listOf("auth/check-phone", "auth/send-otp", "auth/verify-otp", "auth/register", "auth/login", "auth/refresh-token")
         val path = request.url.encodedPath
         val isPublic = publicPaths.any { path.contains(it) }
 
@@ -210,5 +210,9 @@ object ApiClient {
      */
     val userApi: UserApiService by lazy {
         retrofit.create(UserApiService::class.java)
+    }
+
+    val storyApi: StoryApiService by lazy {
+        retrofit.create(StoryApiService::class.java)
     }
 }

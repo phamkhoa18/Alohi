@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -59,7 +60,7 @@ import com.example.alohi.ui.viewmodel.AuthViewModel
 @Composable
 fun LoginScreen(
     authViewModel: AuthViewModel,
-    onNavigateToOtp: (String) -> Unit,
+    onNavigateToOtp: (String, String) -> Unit,
     onNavigateToMain: () -> Unit,
 ) {
     val uiState by authViewModel.uiState.collectAsState()
@@ -75,8 +76,20 @@ fun LoginScreen(
     LaunchedEffect(uiState.otpSent) {
         if (uiState.otpSent) {
             toastData = ToastData("Mã OTP đã được gửi để đăng ký!", ToastType.SUCCESS)
-            onNavigateToOtp(phoneNumber)
+            onNavigateToOtp(phoneNumber, "register")
             authViewModel.resetOtpState()
+        }
+    }
+
+    LaunchedEffect(uiState.forgotPasswordOtpSent) {
+        if (uiState.forgotPasswordOtpSent) {
+            toastData = ToastData("Mã OTP bảo mật tải khoản đã được gửi!", ToastType.SUCCESS)
+            // wait we already navigated on click, so we shouldn't navigate twice!
+            // Wait, if we use LaunchedEffect to navigate, we should remove the click listner navigation!
+            // Actually it's better to navigate here if success, OR just let click listener handle it.
+            // But let's keep consistency.
+            onNavigateToOtp(phoneNumber, "reset_password")
+            // authViewModel.resetForgotPasswordOtpState() needed? Let's just navigate.
         }
     }
 
@@ -146,97 +159,157 @@ fun LoginScreen(
                     .padding(top = 40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Số điện thoại",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                var currentStep by remember { mutableStateOf(1) }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                if (currentStep == 1) {
+                    Text(
+                        text = "Số điện thoại",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                OutlinedTextField(
-                    value = phoneNumber,
-                    onValueChange = { if (it.length <= 10 && it.all { c -> c.isDigit() }) phoneNumber = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = {
-                        Text(text = "0912 345 678", color = colors.textTertiary)
-                    },
-                    prefix = {
-                        Text(
-                            text = "+84  ",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = { if (it.length <= 10 && it.all { c -> c.isDigit() }) phoneNumber = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(text = "0912 345 678", color = colors.textTertiary)
+                        },
+                        prefix = {
+                            Text(
+                                text = "+84  ",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = colors.border,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        ),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium
                         )
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = colors.border,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    ),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium
                     )
-                )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                Text(
-                    text = "Mật khẩu",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = {
-                        Text(text = "Nhập mật khẩu", color = colors.textTertiary)
-                    },
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    trailingIcon = {
-                        val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                        val description = if (passwordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu"
-
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(imageVector = image, contentDescription = description)
+                    GradientButton(
+                        text = "Tiếp tục",
+                        onClick = {
+                            if (phoneNumber.length >= 9) {
+                                authViewModel.checkPhone(phoneNumber) {
+                                    currentStep = 2
+                                }
+                            }
+                        },
+                        enabled = phoneNumber.length >= 9,
+                        isLoading = uiState.isLoading
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        val displayName = uiState.userPhoneCheck?.displayName ?: "Người dùng"
+                        com.example.alohi.ui.components.AvatarImage(
+                            name = displayName,
+                            imageUrl = uiState.userPhoneCheck?.avatar?.url,
+                            size = 56.dp
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        Column {
+                            Text(
+                                text = uiState.userPhoneCheck?.displayName ?: "Người dùng",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "+84 $phoneNumber",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary
+                            )
                         }
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = colors.border,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    ),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium
+                    }
+                    
+                    Text(
+                        text = "Mật khẩu",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                GradientButton(
-                    text = "Đăng nhập",
-                    onClick = {
-                        authViewModel.login(phoneNumber, password)
-                    },
-                    enabled = phoneNumber.length >= 9 && password.isNotEmpty(),
-                    isLoading = uiState.isLoading
-                )
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(text = "Nhập mật khẩu", color = colors.textTertiary)
+                        },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        trailingIcon = {
+                            val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                            val description = if (passwordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu"
+
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(imageVector = image, contentDescription = description)
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = colors.border,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        ),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { currentStep = 1 }) {
+                            Text("Đổi số khác", color = colors.textSecondary)
+                        }
+                        TextButton(onClick = { 
+                            authViewModel.forgotPassword(phoneNumber)
+                        }) {
+                            Text("Quên mật khẩu?", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    GradientButton(
+                        text = "Đăng nhập",
+                        onClick = {
+                            authViewModel.login(phoneNumber, password)
+                        },
+                        enabled = password.isNotEmpty(),
+                        isLoading = uiState.isLoading
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 

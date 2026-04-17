@@ -84,6 +84,8 @@ fun ChatListScreen(
     onChatClick: (String, String) -> Unit,
     onCreateGroupClick: () -> Unit = {},
     onRefresh: () -> Unit = {},
+    onNavigateToCreateStory: () -> Unit = {},
+    onNavigateToStoryViewer: (String) -> Unit = {}
 ) {
     val colors = AloHiTheme.extendedColors
     var showSearch by remember { mutableStateOf(false) }
@@ -189,31 +191,13 @@ fun ChatListScreen(
                         .fillMaxSize()
                         .background(Color.White)
                 ) {
-                    // ── Online Friends Story Row ──
-                    if (onlineFriends.isNotEmpty()) {
-                        item {
-                            LazyRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.White)
-                                    .padding(vertical = 14.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                items(onlineFriends) { friend ->
-                                    StoryCircle(
-                                        name = friend.displayName,
-                                        isAddStory = false,
-                                        hasSeen = false,
-                                        storyCount = 1,
-                                    )
-                                }
-                            }
-                        }
-
-                        item {
-                            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 6.dp)
-                        }
+                    // ── Stories Row ──
+                    item {
+                        com.example.alohi.ui.screens.story.StoryRow(
+                            onNavigateToCreateStory = onNavigateToCreateStory,
+                            onNavigateToStoryViewer = onNavigateToStoryViewer
+                        )
+                        HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 6.dp)
                     }
 
                     // ── Conversation List ──

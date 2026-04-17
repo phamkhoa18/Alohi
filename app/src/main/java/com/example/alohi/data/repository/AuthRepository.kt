@@ -30,6 +30,31 @@ class AuthRepository(
     }
 
     // ═══════════════════════════════════════════════════════
+    // CHECK PHONE (Zalo Flow)
+    // ═══════════════════════════════════════════════════════
+    suspend fun checkPhone(phone: String): Result<UserProfile> {
+        return try {
+            val formattedPhone = formatPhone(phone)
+            val response = api.checkPhone(SendOtpRequest(formattedPhone))
+
+            if (response.isSuccessful && response.body()?.success == true) {
+                val data = response.body()?.data
+                if (data != null) {
+                    Result.success(data)
+                } else {
+                    Result.failure(Exception("Không có dữ liệu user"))
+                }
+            } else {
+                val errorMsg = parseError(response.errorBody()?.string())
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "checkPhone error", e)
+            Result.failure(Exception("Lỗi kết nối: ${e.localizedMessage}"))
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
     // SEND OTP
     // ═══════════════════════════════════════════════════════
     suspend fun sendOtp(phone: String): Result<SendOtpResponse> {
@@ -66,6 +91,39 @@ class AuthRepository(
             }
         } catch (e: Exception) {
             Log.e(TAG, "verifyOtp error", e)
+            Result.failure(Exception("Lỗi kết nối: ${e.localizedMessage}"))
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // FORGOT / RESET PASSWORD
+    // ═══════════════════════════════════════════════════════
+    suspend fun forgotPassword(phone: String): Result<Unit> {
+        return try {
+            val formattedPhone = formatPhone(phone)
+            val response = api.forgotPassword(SendOtpRequest(formattedPhone))
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.success(Unit)
+            } else {
+                val errorMsg = parseError(response.errorBody()?.string())
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Lỗi kết nối: ${e.localizedMessage}"))
+        }
+    }
+
+    suspend fun resetPassword(phone: String, otpCode: String, newPassword: String): Result<Unit> {
+        return try {
+            val formattedPhone = formatPhone(phone)
+            val response = api.resetPassword(ResetPasswordRequest(formattedPhone, otpCode, newPassword))
+            if (response.isSuccessful && response.body()?.success == true) {
+                Result.success(Unit)
+            } else {
+                val errorMsg = parseError(response.errorBody()?.string())
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
             Result.failure(Exception("Lỗi kết nối: ${e.localizedMessage}"))
         }
     }

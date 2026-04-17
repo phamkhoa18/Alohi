@@ -26,6 +26,14 @@ import com.example.alohi.ui.screens.call.CallScreen
 import com.example.alohi.ui.viewmodel.CallViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 class MainActivity : AppCompatActivity() {
+    private val _currentIntent = kotlinx.coroutines.flow.MutableStateFlow<android.content.Intent?>(null)
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent) // Update MainActivity's intent
+        _currentIntent.value = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -62,8 +70,10 @@ class MainActivity : AppCompatActivity() {
                         android.util.Log.e("AlohiFCM", "Failed to register Startup FCM token", e)
                     }
                 }
-            }
+            } // Close if
         }
+
+        _currentIntent.value = intent
 
         try {
             androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(
@@ -121,15 +131,34 @@ class MainActivity : AppCompatActivity() {
                             val callViewModel: CallViewModel = viewModel()
                             val callState by callViewModel.callState.collectAsState()
                             
-                            LaunchedEffect(intent) {
-                                if (intent?.getStringExtra("action") == "incoming_call") {
-                                    val callId = intent.getStringExtra("callId") ?: ""
-                                    val callerName = intent.getStringExtra("callerName") ?: ""
-                                    val sdpOffer = intent.getStringExtra("sdpOffer") ?: ""
-                                    val callType = intent.getStringExtra("type") ?: "voice"
+                            val currentIntentState by _currentIntent.collectAsState()
+                            
+                            LaunchedEffect(currentIntentState) {
+                                val currentIntent = currentIntentState ?: intent
+                                val conversationId = currentIntent?.getStringExtra("conversationId")
+                                if (currentIntent?.getStringExtra("action") == "incoming_call") {
+                                    val callId = currentIntent.getStringExtra("callId") ?: ""
+                                    val callerName = currentIntent.getStringExtra("callerName") ?: ""
+                                    val sdpOffer = currentIntent.getStringExtra("sdpOffer") ?: ""
+                                    val callType = currentIntent.getStringExtra("type") ?: "voice"
                                     callViewModel.notifyIncomingCall(callId, callerName, sdpOffer, callType)
                                     // Clear intent action so it doesn't refire
-                                    intent.removeExtra("action")
+                                    currentIntent.removeExtra("action")
+                                    _currentIntent.value = currentIntent
+                                } else if (!conversationId.isNullOrEmpty()) {
+                                    // User clicked a chat notification
+                                    val title = currentIntent.getStringExtra("title") ?: currentIntent.getStringExtra("senderName") ?: "Chat"
+                                    navController.navigate(com.example.alohi.ui.navigation.Screen.ConversationDetail.createRoute(conversationId, title))
+                                    currentIntent.removeExtra("conversationId")
+                                    _currentIntent.value = currentIntent
+                                } else if (currentIntent?.getStringExtra("type") == "story") {
+                                    val authorId = currentIntent.getStringExtra("authorId")
+                                    if (!authorId.isNullOrEmpty()) {
+                                        navController.navigate(com.example.alohi.ui.navigation.Screen.StoryViewer.createRoute(authorId))
+                                        currentIntent.removeExtra("type")
+                                        currentIntent.removeExtra("authorId")
+                                        _currentIntent.value = currentIntent
+                                    }
                                 }
                             }
 

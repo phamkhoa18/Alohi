@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.alohi.data.local.AloHiDatabase
 import com.example.alohi.data.local.TokenManager
 import com.example.alohi.data.model.LoginResponse
+import com.example.alohi.data.model.UserProfile
 import com.example.alohi.data.remote.ApiClient
 import com.example.alohi.data.remote.SocketManager
 import com.example.alohi.data.repository.AuthRepository
@@ -38,9 +39,13 @@ data class AuthUiState(
     // Login
     val isLoggedIn: Boolean = false,
     val loginResponse: LoginResponse? = null,
+    val userPhoneCheck: UserProfile? = null, // Store queried user info
 
-    // Registration form
     val needsRegistration: Boolean = false,
+    
+    // Reset password
+    val forgotPasswordOtpSent: Boolean = false,
+    val passwordResetSuccess: Boolean = false,
 )
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
@@ -59,6 +64,32 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val loggedIn = repository.isLoggedIn()
             _uiState.value = _uiState.value.copy(isLoggedIn = loggedIn)
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CHECK PHONE
+    // ═══════════════════════════════════════════════════════
+    fun checkPhone(phone: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null, userPhoneCheck = null)
+
+            val result = repository.checkPhone(phone)
+            result.fold(
+                onSuccess = { user ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        userPhoneCheck = user,
+                    )
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = error.message
+                    )
+                }
+            )
         }
     }
 
@@ -108,6 +139,47 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         isLoading = false,
                         error = error.message,
                     )
+                }
+            )
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // FORGOT / RESET PASSWORD
+    // ═══════════════════════════════════════════════════════
+    fun forgotPassword(phone: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null, forgotPasswordOtpSent = false)
+
+            val result = repository.forgotPassword(phone)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        forgotPasswordOtpSent = true
+                    )
+                },
+                onFailure = {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = it.message)
+                }
+            )
+        }
+    }
+
+    fun resetPassword(phone: String, otpCode: String, newPassword: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null, passwordResetSuccess = false)
+
+            val result = repository.resetPassword(phone, otpCode, newPassword)
+            result.fold(
+                onSuccess = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        passwordResetSuccess = true
+                    )
+                },
+                onFailure = {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = it.message)
                 }
             )
         }

@@ -14,11 +14,22 @@ import retrofit2.http.Path
  */
 interface AuthApiService {
 
+    @POST("auth/check-phone")
+    suspend fun checkPhone(
+        @Body request: SendOtpRequest // SendOtpRequest has `phone`, which is perfect
+    ): Response<ApiResponse<UserProfile>>
+
     /** Step 1: Send OTP to phone number */
     @POST("auth/send-otp")
     suspend fun sendOtp(
         @Body request: SendOtpRequest,
     ): Response<ApiResponse<SendOtpResponse>>
+
+    @POST("auth/forgot-password")
+    suspend fun forgotPassword(@Body request: SendOtpRequest): Response<ApiResponse<Unit>>
+    
+    @POST("auth/reset-password")
+    suspend fun resetPassword(@Body request: com.example.alohi.data.model.ResetPasswordRequest): Response<ApiResponse<Unit>>
 
     /** Step 2: Verify OTP code */
     @POST("auth/verify-otp")

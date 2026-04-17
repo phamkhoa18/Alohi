@@ -116,8 +116,8 @@ fun AloHiNavGraph(
         composable(Screen.Login.route) {
             LoginScreen(
                 authViewModel = authViewModel,
-                onNavigateToOtp = { phone ->
-                    navController.navigate(Screen.Otp.createRoute(phone))
+                onNavigateToOtp = { phone, flow ->
+                    navController.navigate(Screen.Otp.createRoute(phone, flow))
                 },
                 onNavigateToMain = {
                     // Handled automatically by Reactive Navigation in MainActivity
@@ -128,17 +128,26 @@ fun AloHiNavGraph(
         // ═══════ OTP ═══════
         composable(
             route = Screen.Otp.route,
-            arguments = listOf(navArgument("phone") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("phone") { type = NavType.StringType },
+                navArgument("flow") { type = NavType.StringType }
+            )
         ) { backStackEntry ->
             val phone = backStackEntry.arguments?.getString("phone") ?: ""
+            val flow = backStackEntry.arguments?.getString("flow") ?: "register"
             OtpScreen(
                 phone = phone,
                 authViewModel = authViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onVerifySuccess = {
-                    // After OTP verified, go to Register screen
-                    navController.navigate(Screen.Register.createRoute(phone)) {
-                        popUpTo(Screen.Otp.route) { inclusive = true }
+                    if (flow == "reset_password") {
+                        navController.navigate(Screen.ResetPassword.createRoute(phone)) {
+                            popUpTo(Screen.Otp.route) { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate(Screen.Register.createRoute(phone)) {
+                            popUpTo(Screen.Otp.route) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -156,6 +165,24 @@ fun AloHiNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onRegisterSuccess = {
                     // Handled automatically by Reactive Navigation in MainActivity
+                }
+            )
+        }
+
+        // ═══════ RESET PASSWORD ═══════
+        composable(
+            route = Screen.ResetPassword.route,
+            arguments = listOf(navArgument("phone") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val phone = backStackEntry.arguments?.getString("phone") ?: ""
+            com.example.alohi.ui.screens.auth.ResetPasswordScreen(
+                phone = phone,
+                authViewModel = authViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
                 }
             )
         }
@@ -184,6 +211,12 @@ fun AloHiNavGraph(
                 },
                 onLogout = {
                     authViewModel.logout()
+                },
+                onNavigateToCreateStory = {
+                    navController.navigate(Screen.CreateStory.route)
+                },
+                onNavigateToStoryViewer = { authorId ->
+                    navController.navigate(Screen.StoryViewer.createRoute(authorId))
                 }
             )
         }
@@ -300,6 +333,31 @@ fun AloHiNavGraph(
                         popUpTo(Screen.Main.route)
                     }
                 }
+            )
+        }
+
+        // ═══════ STORY ═══════
+        composable(
+            route = Screen.CreateStory.route,
+            enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up) },
+            exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down) }
+        ) {
+            com.example.alohi.ui.screens.story.CreateStoryScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.StoryViewer.route,
+            arguments = listOf(navArgument("authorId") { type = NavType.StringType }),
+            enterTransition = { fadeIn(animationSpec = tween(300)) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) }
+        ) { backStackEntry ->
+            val authorId = backStackEntry.arguments?.getString("authorId") ?: ""
+            com.example.alohi.ui.screens.story.StoryViewerScreen(
+                authorId = authorId,
+                currentUserId = mainViewModel.uiState.value.currentUser?.id ?: "",
+                onBack = { navController.popBackStack() }
             )
         }
     }
