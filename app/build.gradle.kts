@@ -77,9 +77,14 @@ dependencies {
     // Navigation
     implementation(libs.androidx.navigation.compose)
 
-    // Image Loading
+    // Image & Video Loading
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
+    implementation("io.coil-kt.coil3:coil-video:3.0.4")
+
+    // Video Player
+    implementation("androidx.media3:media3-exoplayer:1.2.1")
+    implementation("androidx.media3:media3-ui:1.2.1")
 
     // Networking (Retrofit + OkHttp)
     implementation(libs.retrofit.core)

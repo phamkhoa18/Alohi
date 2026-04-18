@@ -90,6 +90,9 @@ interface UserApiService {
     /** PUT /api/friends/request/:requestId/accept */
     @PUT("friends/request/{requestId}/accept")
     suspend fun acceptRequest(@Path("requestId") requestId: String): Response<ApiResponse<Unit>>
+    
+    @PUT("friends/request/user/{userId}/accept")
+    suspend fun acceptRequestByUserId(@Path("userId") userId: String): Response<ApiResponse<Unit>>
 
     /** PUT /api/friends/request/:requestId/reject */
     @PUT("friends/request/{requestId}/reject")

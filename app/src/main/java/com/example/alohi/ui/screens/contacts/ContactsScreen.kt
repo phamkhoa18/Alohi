@@ -76,7 +76,8 @@ fun ContactsScreen(
     onContactClick: (String, String) -> Unit = { _, _ -> },
     onAddFriendClick: () -> Unit = {},
     onCreateGroupClick: () -> Unit = {},
-    onRefresh: () -> Unit = {},
+    onFriendRequestsClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
 ) {
     val colors = AloHiTheme.extendedColors
 
@@ -106,7 +107,7 @@ fun ContactsScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = onSearchClick) {
                         Icon(Icons.Default.Search, "Tìm kiếm", tint = Color.White)
                     }
                 },
@@ -150,51 +151,19 @@ fun ContactsScreen(
                             subtitle = "Tạo nhóm chat mới",
                             onClick = onCreateGroupClick
                         )
+                        Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onFriendRequestsClick)) {
+                            QuickActionItem(
+                                icon = Icons.Default.PersonAdd, // Or another icon
+                                title = "Trạng thái kết bạn",
+                                subtitle = "Xem lời mời đã nhận và đã gửi",
+                                onClick = onFriendRequestsClick,
+                                badgeCount = friendRequests.size
+                            )
+                        }
                     }
                     HorizontalDivider(color = colors.divider, thickness = 6.dp)
                 }
 
-                // ── Friend Requests Section ──
-                if (friendRequests.isNotEmpty()) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Lời mời kết bạn",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.textSecondary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Badge(
-                                containerColor = MaterialTheme.colorScheme.error,
-                                contentColor = Color.White
-                            ) {
-                                Text(
-                                    text = "${friendRequests.size}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    items(friendRequests) { request ->
-                        FriendRequestItem(
-                            request = request,
-                            onAccept = { mainViewModel.acceptFriendRequest(request.id) },
-                            onReject = { mainViewModel.rejectFriendRequest(request.id) }
-                        )
-                    }
-
-                    item {
-                        HorizontalDivider(color = colors.divider, thickness = 6.dp)
-                    }
-                }
 
                 // Friend count
                 item {
@@ -298,10 +267,12 @@ fun ContactsScreen(
 }
 
 @Composable
-private fun FriendRequestItem(
+fun FriendRequestItem(
     request: FriendRequest,
-    onAccept: () -> Unit,
-    onReject: () -> Unit,
+    isSentRequest: Boolean = false,
+    onAccept: () -> Unit = {},
+    onReject: () -> Unit = {},
+    onCancel: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -309,56 +280,64 @@ private fun FriendRequestItem(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val user = if (isSentRequest) request.to else request.from
+        
         AvatarImage(
-            name = request.from.displayName,
+            name = user?.displayName ?: "Unknown",
             size = 50.dp,
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = request.from.displayName,
+                text = user?.displayName ?: "Unknown",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Muốn kết bạn với bạn",
+                text = if (isSentRequest) "Đã gửi lời mời kết bạn" else "Muốn kết bạn với bạn",
                 style = MaterialTheme.typography.bodySmall,
                 color = AloHiTheme.extendedColors.textSecondary
             )
         }
 
-        // Accept button
-        IconButton(
-            onClick = onAccept,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-        ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Chấp nhận",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
+        if (isSentRequest) {
+            TextButton(onClick = onCancel) {
+                Text("Hủy", color = MaterialTheme.colorScheme.error)
+            }
+        } else {
+            // Accept button
+            IconButton(
+                onClick = onAccept,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Chấp nhận",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
-        Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-        // Reject button
-        IconButton(
-            onClick = onReject,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFF2F2F7))
-        ) {
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Từ chối",
-                tint = Color(0xFF8E8E93),
-                modifier = Modifier.size(20.dp)
-            )
+            // Reject button
+            IconButton(
+                onClick = onReject,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF2F2F7))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Từ chối",
+                    tint = Color(0xFF8E8E93),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
@@ -368,6 +347,7 @@ private fun QuickActionItem(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    badgeCount: Int = 0,
     onClick: () -> Unit,
 ) {
     Row(
@@ -392,7 +372,7 @@ private fun QuickActionItem(
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
@@ -403,6 +383,18 @@ private fun QuickActionItem(
                 style = MaterialTheme.typography.bodySmall,
                 color = AloHiTheme.extendedColors.textSecondary
             )
+        }
+        if (badgeCount > 0) {
+            Badge(
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = Color.White
+            ) {
+                Text(
+                    text = if (badgeCount > 99) "99+" else badgeCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

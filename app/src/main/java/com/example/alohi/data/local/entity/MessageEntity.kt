@@ -44,4 +44,7 @@ data class MessageEntity(
 
     // Sync metadata
     val isSynced: Boolean = true,    // false = pending upload to server
+
+    // Metadata
+    val attachmentsJson: String? = null,
 )

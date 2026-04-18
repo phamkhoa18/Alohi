@@ -73,6 +73,7 @@ import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.PersonRemove
+import com.example.alohi.ui.screens.group.AddMembersDialog
 
 /**
  * Chat Detail / Info screen — Zalo/Messenger style
@@ -90,6 +91,7 @@ fun ConversationDetailScreen(
     partnerName: String,
     mainViewModel: MainViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToProfile: (String) -> Unit = {},
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
     val messages = uiState.messages
@@ -110,7 +112,12 @@ fun ConversationDetailScreen(
     val allImageUrls = remember(imageMessages) {
         imageMessages.map { msg ->
             val content = msg.content ?: msg.preview ?: ""
-            if (content.startsWith("/")) serverUrl + content.removePrefix("/") else content
+            val isRemoteRelative = !content.startsWith("http") && !content.startsWith("content://") && !content.startsWith("file://")
+            if (isRemoteRelative) {
+                if (content.startsWith("/")) serverUrl + content.removePrefix("/") else serverUrl + content
+            } else {
+                content
+            }
         }
     }
 
@@ -118,9 +125,10 @@ fun ConversationDetailScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Ảnh (${imageMessages.size})", "Video (${videoMessages.size})", "File (${fileMessages.size})")
 
-    // ── Search state ──
+    // ── Search & Dialog state ──
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
+    var showAddMembersDialog by remember { mutableStateOf(false) }
     val searchResults = remember(searchQuery, messages) {
         if (searchQuery.isBlank()) emptyList()
         else messages.filter {
@@ -129,8 +137,9 @@ fun ConversationDetailScreen(
         }
     }
 
-    // ── Image viewer state ──
+    // ── Image & Video viewer state ──
     var viewerImageIndex by remember { mutableIntStateOf(-1) }
+    var viewingVideoUrl by remember { mutableStateOf<String?>(null) }
 
     // ── Partner / Group info ──
     val currentConversation = uiState.conversations.firstOrNull { it.id == conversationId }
@@ -226,7 +235,10 @@ fun ConversationDetailScreen(
                             imageUrl = partnerAvatar,
                             size = 80.dp,
                             showOnlineIndicator = true,
-                            isOnline = isPartnerOnline
+                            isOnline = isPartnerOnline,
+                            modifier = Modifier.clickable { 
+                                partnerParticipant?.user?.id?.let { onNavigateToProfile(it) }
+                            }
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -341,7 +353,7 @@ fun ConversationDetailScreen(
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .size(24.dp)
-                                        .clickable { /* TODO: navigate to add members */ }
+                                        .clickable { showAddMembersDialog = true }
                                 )
                             }
                         }
@@ -422,8 +434,9 @@ fun ConversationDetailScreen(
             // ═══════════════════════════════════════
             item(key = "quick_actions") {
                 val isMuted = myParticipant?.isMuted == true
-                val isPinned = myParticipant?.isPinned == true
-                val isBlocked = false // requires profile sync for blocked users list
+                val isBlocked = partnerParticipant?.user?.id?.let { uid ->
+                    uiState.currentUser?.blockedUsers?.contains(uid) == true
+                } ?: false
 
                 Column(
                     modifier = Modifier
@@ -441,16 +454,20 @@ fun ConversationDetailScreen(
                     )
                     HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(start = 56.dp))
 
-                    ListItem(
-                        headlineContent = { Text(if (isPinned) "Bỏ ghim" else "Ghim hội thoại") },
-                        leadingContent = {
-                            Icon(Icons.Default.PushPin, contentDescription = null, tint = if (isPinned) MaterialTheme.colorScheme.primary else Color(0xFF8E8E93))
-                        },
-                        modifier = Modifier.clickable { 
-                            mainViewModel.pinConversation(conversationId, isPinned)
-                        }
-                    )
-                    HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(start = 56.dp))
+                    if (!isGroupChat) {
+                        ListItem(
+                            headlineContent = { Text("Xem trang cá nhân") },
+                            leadingContent = {
+                                Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFF8E8E93))
+                            },
+                            modifier = Modifier.clickable { 
+                                partnerParticipant?.user?.id?.let { onNavigateToProfile(it) }
+                            }
+                        )
+                        HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(start = 56.dp))
+                    }
+
+
 
                     if (isGroupChat) {
                         // Leave group
@@ -566,7 +583,12 @@ fun ConversationDetailScreen(
                             ) {
                                 row.forEachIndexed { colIndex, msg ->
                                     val content = msg.content ?: msg.preview ?: ""
-                                    val imageUrl = if (content.startsWith("/")) serverUrl + content.removePrefix("/") else content
+                                    val isRemoteRelative = !content.startsWith("http") && !content.startsWith("content://") && !content.startsWith("file://")
+                                    val imageUrl = if (isRemoteRelative) {
+                                        if (content.startsWith("/")) serverUrl + content.removePrefix("/") else serverUrl + content
+                                    } else {
+                                        content
+                                    }
                                     val globalIndex = rowIndex * 3 + colIndex
 
                                     AsyncImage(
@@ -599,7 +621,12 @@ fun ConversationDetailScreen(
                     } else {
                         items(videoMessages, key = { it.id ?: it.messageId ?: it.hashCode() }) { msg ->
                             val content = msg.content ?: msg.preview ?: ""
-                            val videoUrl = if (content.startsWith("/")) serverUrl + content.removePrefix("/") else content
+                            val isRemoteRelative = !content.startsWith("http") && !content.startsWith("content://") && !content.startsWith("file://")
+                            val videoUrl = if (isRemoteRelative) {
+                                if (content.startsWith("/")) serverUrl + content.removePrefix("/") else serverUrl + content
+                            } else {
+                                content
+                            }
                             val time = msg.createdAt?.let {
                                 try { it.substringAfter("T").take(5) } catch (e: Exception) { "" }
                             } ?: ""
@@ -608,7 +635,7 @@ fun ConversationDetailScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(Color.White)
-                                    .clickable { /* TODO: play video */ }
+                                    .clickable { viewingVideoUrl = videoUrl }
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -696,6 +723,33 @@ fun ConversationDetailScreen(
             item { Spacer(modifier = Modifier.height(32.dp)) }
         }
     }
+
+    // ═══════════════════════════════════════════════════════
+    // ADD MEMBERS DIALOG
+    // ═══════════════════════════════════════════════════════
+    if (showAddMembersDialog && isGroupChat) {
+        val currentMemberIds = participants.mapNotNull { it.user?.id }
+        AddMembersDialog(
+            friends = uiState.friends,
+            currentMemberIds = currentMemberIds,
+            onDismiss = { showAddMembersDialog = false },
+            onAddMembers = { newMemberIds ->
+                mainViewModel.addGroupMembers(conversationId, newMemberIds)
+                showAddMembersDialog = false
+            }
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // VIDEO VIEWER DIALOG
+    // ═══════════════════════════════════════════════════════
+    if (viewingVideoUrl != null) {
+        VideoViewerDialog(
+            videoUrl = viewingVideoUrl!!,
+            onDismiss = { viewingVideoUrl = null }
+        )
+    }
+
 }
 
 @Composable

@@ -35,6 +35,7 @@ fun MessageItem.toEntity(conversationId: String): MessageEntity {
         createdAt = this.createdAt,
         clientMessageId = null,
         isSynced = true,
+        attachmentsJson = if (this.attachments != null) gson.toJson(this.attachments) else null,
     )
 }
 
@@ -59,6 +60,10 @@ fun MessageEntity.toModel(): MessageItem {
         isRecalled = this.isRecalled,
         createdAt = this.createdAt,
         deliveryStatus = this.deliveryStatus,
+        attachments = if (this.attachmentsJson != null) {
+            val type = object : TypeToken<List<com.example.alohi.data.model.AttachmentData>>() {}.type
+            gson.fromJson(this.attachmentsJson, type)
+        } else null,
     )
 }
 

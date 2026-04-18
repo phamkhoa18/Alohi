@@ -22,6 +22,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import com.example.alohi.ui.theme.AloHiTheme
 
 /**
@@ -145,9 +148,22 @@ fun ChatListItem(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Unread badge
-            if (unreadCount > 0) {
-                UnreadBadge(count = unreadCount)
+            // Unread badge and Muted icon
+            androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                if (isMuted) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Default.NotificationsOff,
+                        contentDescription = "Tắt thông báo",
+                        modifier = androidx.compose.ui.Modifier.size(16.dp),
+                        tint = colors.textTertiary
+                    )
+                    if (unreadCount > 0) {
+                        Spacer(modifier = androidx.compose.ui.Modifier.width(4.dp))
+                    }
+                }
+                if (unreadCount > 0) {
+                    UnreadBadge(count = unreadCount)
+                }
             }
         }
     }

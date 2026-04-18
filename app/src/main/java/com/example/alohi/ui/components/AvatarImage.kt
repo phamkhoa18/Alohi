@@ -22,6 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.example.alohi.data.remote.SocketManager
 import com.example.alohi.ui.theme.AloHiTheme
 
 /**
@@ -125,25 +128,29 @@ fun AvatarImage(
         }
 
         // Online indicator
-        if (showOnlineIndicator && isOnline) {
+        if (showOnlineIndicator) {
             OnlineIndicator(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .offset(x = (-1).dp, y = (-1).dp),
-                size = size * 0.28f
+                size = size * 0.28f,
+                isOnline = isOnline
             )
         }
     }
 }
 
 /**
- * Green online indicator dot
+ * Online indicator dot (Green for online, Gray for offline)
  */
 @Composable
 fun OnlineIndicator(
     modifier: Modifier = Modifier,
-    size: Dp = 14.dp
+    size: Dp = 14.dp,
+    isOnline: Boolean = true
 ) {
+    val socketState by SocketManager.socketState.collectAsState()
+    
     Box(
         modifier = modifier
             .size(size)
@@ -152,11 +159,18 @@ fun OnlineIndicator(
             .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
         contentAlignment = Alignment.Center
     ) {
+        val indicatorColor = if (isOnline && socketState == SocketManager.SocketState.CONNECTED) {
+            AloHiTheme.extendedColors.online
+        } else {
+            // Gray color for offline similar to Messenger
+            Color(0xFFD1D1D6)
+        }
+        
         Box(
             modifier = Modifier
                 .size(size - 4.dp)
                 .clip(CircleShape)
-                .background(AloHiTheme.extendedColors.online)
+                .background(indicatorColor)
         )
     }
 }

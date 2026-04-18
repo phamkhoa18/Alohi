@@ -118,6 +118,7 @@ import com.example.alohi.ui.components.MessageStatus
 import com.example.alohi.ui.theme.AloHiTheme
 import com.example.alohi.ui.viewmodel.MainViewModel
 import androidx.compose.runtime.collectAsState
+import com.example.alohi.data.remote.SocketManager.SocketState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -191,8 +192,9 @@ fun ConversationScreen(
     val messages = uiState.messages
     val typingUser = uiState.typingUser
 
-    // ── Image viewer state ──
+    // ── Image & Video viewer state ──
     var viewingImageUrl by remember { mutableStateOf<String?>(null) }
+    var viewingVideoUrl by remember { mutableStateOf<String?>(null) }
 
     // ── Context menu state ──
     var selectedMessage by remember { mutableStateOf<MessageItem?>(null) }
@@ -217,17 +219,28 @@ fun ConversationScreen(
     val partnerParticipant = currentConversation?.participants?.firstOrNull {
         it.user?.id != uiState.currentUser?.id
     }
-    val isPartnerOnline = partnerParticipant?.user?.isOnline == true
+    val isPartnerOnline = partnerParticipant?.user?.isOnline == true && uiState.socketState == SocketState.CONNECTED
     val partnerLastSeen = partnerParticipant?.user?.lastSeen
     val groupMemberCount = if (isGroupChat) currentConversation?.participants?.size ?: 0 else 0
 
+    val isBlockedByMe = !isGroupChat && partnerParticipant?.user?.id?.let { uid ->
+        uiState.currentUser?.blockedUsers?.contains(uid) == true
+    } ?: false
+
+    val isBlockedByPartner = !isGroupChat && partnerParticipant?.user?.hasBlockedMe == true
+
     // ── Media pickers ──
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
             uris.forEach { uri ->
-                mainViewModel.sendImageMessage(context, conversationId, uri)
+                val mimeType = context.contentResolver.getType(uri)
+                if (mimeType?.startsWith("video/") == true) {
+                    mainViewModel.sendVideoMessage(context, conversationId, uri)
+                } else {
+                    mainViewModel.sendImageMessage(context, conversationId, uri)
+                }
             }
             activePanel = ChatPanel.NONE
         }
@@ -359,12 +372,18 @@ fun ConversationScreen(
     }
 
     // ═══════════════════════════════════════════════════════
-    // IMAGE VIEWER DIALOG
+    // IMAGE & VIDEO VIEWER DIALOGS
     // ═══════════════════════════════════════════════════════
     if (viewingImageUrl != null) {
         ImageViewerDialog(
             imageUrl = viewingImageUrl!!,
             onDismiss = { viewingImageUrl = null }
+        )
+    }
+    if (viewingVideoUrl != null) {
+        VideoViewerDialog(
+            videoUrl = viewingVideoUrl!!,
+            onDismiss = { viewingVideoUrl = null }
         )
     }
 
@@ -620,9 +639,16 @@ fun ConversationScreen(
             Column {
                 TopAppBar(
                     title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNavigateToDetail() }
+                                .padding(end = 8.dp, top = 4.dp, bottom = 4.dp)
+                        ) {
                             AvatarImage(
                                 name = partnerName,
+                                imageUrl = if (isGroupChat) currentConversation?.group?.avatar?.url else partnerParticipant?.user?.avatar?.url,
                                 size = 38.dp,
                                 showOnlineIndicator = true,
                                 isOnline = isPartnerOnline
@@ -745,18 +771,52 @@ fun ConversationScreen(
                             }
                         }
 
-                        IconButton(onClick = onNavigateToDetail) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Thêm",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.White
                     )
                 )
+
+                // ═══════════════════════════════════════════
+                // NETWORK STATE BANNER (Zalo Style)
+                // ═══════════════════════════════════════════
+                AnimatedVisibility(
+                    visible = uiState.socketState == SocketState.DISCONNECTED || uiState.socketState == SocketState.CONNECTING,
+                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFF0D4)) // Soft warning yellow
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (uiState.socketState == SocketState.CONNECTING) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                color = Color(0xFFFF9500), // Orange
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Đang kết nối...",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFFF9500)
+                            )
+                        } else if (uiState.socketState == SocketState.DISCONNECTED) {
+                            Text(
+                                text = "Mất kết nối mạng. Đang thử lại...",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFFF3B30) // Red
+                            )
+                        }
+                    }
+                }
+
                 HorizontalDivider(
                     color = Color(0xFFE5E5EA),
                     thickness = 0.5.dp
@@ -823,35 +883,69 @@ fun ConversationScreen(
                 }
 
                 // MESSAGE COMPOSER
-                MessageComposer(
-                    value = messageText,
-                    onValueChange = { newText ->
-                        messageText = newText
-                        if (newText.isNotBlank()) {
-                            mainViewModel.onTyping(conversationId)
-                        }
-                    },
-                    onSendClick = {
-                        if (messageText.isNotBlank()) {
-                            if (uiState.replyingToMessage != null) {
-                                mainViewModel.sendReplyMessage(conversationId, messageText.trim())
-                            } else {
-                                mainViewModel.sendMessage(conversationId, messageText.trim())
-                            }
-                            messageText = ""
-                        }
-                    },
-                    activePanel = activePanel,
-                    onStickerToggle = { togglePanel(ChatPanel.STICKER) },
-                    onAttachToggle = { togglePanel(ChatPanel.ATTACHMENT) },
-                    onMicToggle = { togglePanel(ChatPanel.VOICE) },
-                    onGalleryToggle = {
-                        imagePickerLauncher.launch("image/*")
-                    },
-                    onTextFieldFocused = {
-                        activePanel = ChatPanel.NONE
+                if (isBlockedByMe) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Bạn đã chặn người dùng này",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF8E8E93),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
-                )
+                } else if (isBlockedByPartner) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Bạn đã bị chặn bởi người này",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF8E8E93),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                } else {
+                    MessageComposer(
+                        value = messageText,
+                        onValueChange = { newText ->
+                            messageText = newText
+                            if (newText.isNotBlank()) {
+                                mainViewModel.onTyping(conversationId)
+                            }
+                        },
+                        onSendClick = {
+                            if (messageText.isNotBlank()) {
+                                if (uiState.replyingToMessage != null) {
+                                    mainViewModel.sendReplyMessage(conversationId, messageText.trim())
+                                } else {
+                                    mainViewModel.sendMessage(conversationId, messageText.trim())
+                                }
+                                messageText = ""
+                            }
+                        },
+                        activePanel = activePanel,
+                        onStickerToggle = { togglePanel(ChatPanel.STICKER) },
+                        onAttachToggle = { togglePanel(ChatPanel.ATTACHMENT) },
+                        onMicToggle = { togglePanel(ChatPanel.VOICE) },
+                        onGalleryToggle = {
+                            imagePickerLauncher.launch(
+                                androidx.activity.result.PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                                )
+                            )
+                        },
+                        onTextFieldFocused = {
+                            activePanel = ChatPanel.NONE
+                        }
+                    )
+                }
 
                 // BOTTOM PANELS
                 AnimatedVisibility(
@@ -874,7 +968,11 @@ fun ConversationScreen(
                     AttachmentPanel(
                         onOptionClick = { option ->
                             when (option) {
-                                "photo" -> imagePickerLauncher.launch("image/*")
+                                "photo" -> imagePickerLauncher.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                                    )
+                                )
                                 "video" -> videoPickerLauncher.launch("video/*")
                                 "file" -> filePickerLauncher.launch("*/*")
                                 else -> { }
@@ -890,7 +988,13 @@ fun ConversationScreen(
                 ) {
                     GalleryPanel(
                         onCameraClick = { },
-                        onPhotoClick = { imagePickerLauncher.launch("image/*") }
+                        onPhotoClick = { 
+                            imagePickerLauncher.launch(
+                                androidx.activity.result.PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                                )
+                            )
+                        }
                     )
                 }
 
@@ -994,7 +1098,23 @@ fun ConversationScreen(
                                     totalCount = displayItems.size,
                                     currentUserId = currentUserId,
                                     senderName = if (isGroupChat && !isFromMe) msg.sender?.displayName else null,
-                                    onImageClick = { url -> viewingImageUrl = url },
+                                    onImageClick = { url ->
+                                        if (msg.type == "video") {
+                                            viewingVideoUrl = url
+                                        } else {
+                                            viewingImageUrl = url
+                                        }
+                                    },
+                                    onFileClick = { url ->
+                                        try {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                data = android.net.Uri.parse(url)
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            android.widget.Toast.makeText(context, "Không thể mở file", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
                                     onLongPress = {
                                         selectedMessage = msg
                                         showMessageMenu = true
@@ -1011,7 +1131,20 @@ fun ConversationScreen(
                                 ImageGridBubble(
                                     images = item.infos,
                                     isFromMe = item.isFromMe,
-                                    onImageClick = { url -> viewingImageUrl = url },
+                                    onImageClick = { url ->
+                                        if (firstInfo.message.type == "video" || url.contains(".mp4")) {
+                                            try {
+                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(android.net.Uri.parse(url), "video/*")
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                viewingImageUrl = url
+                                            }
+                                        } else {
+                                            viewingImageUrl = url
+                                        }
+                                    },
                                     onLongPress = { msg ->
                                         selectedMessage = msg
                                         showMessageMenu = true
@@ -1153,6 +1286,7 @@ private fun AnimatedMessageBubble(
     currentUserId: String?,
     senderName: String? = null,
     onImageClick: ((String) -> Unit)? = null,
+    onFileClick: ((String) -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
 ) {
     val timestamp = msg.createdAt?.let {
@@ -1214,7 +1348,9 @@ private fun AnimatedMessageBubble(
         replyToContent = msg.replyTo?.content,
         reactions = reactionsSummary,
         isForwarded = msg.forwardedFrom != null,
+        attachments = msg.attachments,
         onImageClick = onImageClick,
+        onFileClick = onFileClick,
         onLongPress = onLongPress,
         modifier = Modifier.graphicsLayer {
             alpha = animAlpha.value

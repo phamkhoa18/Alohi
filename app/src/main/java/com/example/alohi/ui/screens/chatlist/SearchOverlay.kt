@@ -68,7 +68,8 @@ import kotlinx.coroutines.delay
 fun SearchOverlay(
     mainViewModel: MainViewModel,
     onDismiss: () -> Unit,
-    onResultClick: (String, String) -> Unit,
+    onUserClick: (String, String) -> Unit,
+    onChatClick: (String, String) -> Unit,
 ) {
     var searchText by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
@@ -200,7 +201,7 @@ fun SearchOverlay(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onResultClick(friend.id, friend.displayName) }
+                                .clickable { onUserClick(friend.id, friend.displayName) }
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -244,7 +245,7 @@ fun SearchOverlay(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onResultClick(friend.id, friend.displayName) }
+                                .clickable { onUserClick(friend.id, friend.displayName) }
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -301,7 +302,64 @@ fun SearchOverlay(
                     }
                 }
             } else {
-                // ── Search Results ──
+                // ── Local Conversations Search (Groups & Chats) ──
+                val localMatches = uiState.conversations.filter {
+                    val name = if (it.type == "group") it.group?.name else it.participants?.firstOrNull { p -> p.user?.id != uiState.currentUser?.id }?.user?.displayName
+                    name?.contains(searchText, ignoreCase = true) == true
+                }
+                
+                if (localMatches.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Trò chuyện & Nhóm",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                    
+                    items(localMatches) { convo ->
+                        val partner = convo.participants?.firstOrNull { it.user?.id != uiState.currentUser?.id }?.user
+                        val displayName = if (convo.type == "group") convo.group?.name ?: "Nhóm" else partner?.displayName ?: "Người dùng"
+                        val avatarUrl = if (convo.type == "group") convo.group?.avatar?.url else partner?.avatar?.url
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onChatClick(convo.id, displayName) }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AvatarImage(
+                                name = displayName,
+                                imageUrl = avatarUrl,
+                                size = 44.dp,
+                                showOnlineIndicator = convo.type != "group" && partner?.isOnline == true,
+                                isOnline = partner?.isOnline == true
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = displayName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = if (convo.type == "group") "Nhóm • ${convo.participants?.size} thành viên" else "Cá nhân",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary
+                                )
+                            }
+                        }
+                    }
+                    
+                    item {
+                        HorizontalDivider(color = Color(0xFFF2F2F7), thickness = 6.dp)
+                    }
+                }
+
+                // ── Remote Search Results (Find new users) ──
                 item {
                     Text(
                         text = "Kết quả tìm kiếm",
@@ -363,7 +421,7 @@ fun SearchOverlay(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    if (!isMe) onResultClick(user.id, user.displayName)
+                                    if (!isMe) onUserClick(user.id, user.displayName)
                                 }
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically

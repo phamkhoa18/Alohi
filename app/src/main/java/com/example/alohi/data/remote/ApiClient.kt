@@ -22,7 +22,7 @@ object ApiClient {
 
     // 10.0.2.2 = Android emulator's localhost
     // For physical device, use your PC's local IP (e.g., 192.168.1.x)
-    const val BASE_URL = "http://172.16.1.76:3000/api/"
+    const val BASE_URL = "http://192.168.1.72:3000/api/"
 
     private var tokenManager: TokenManager? = null
 

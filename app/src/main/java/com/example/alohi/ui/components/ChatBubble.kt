@@ -87,7 +87,10 @@ fun ChatBubble(
     replyToContent: String? = null,
     reactions: List<Pair<String, Int>>? = null, // emoji to count
     isForwarded: Boolean = false,
+    attachments: List<com.example.alohi.data.model.AttachmentData>? = null,
     onImageClick: ((String) -> Unit)? = null,
+    onFileClick: ((String) -> Unit)? = null,
+    onAudioClick: ((String) -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
 ) {
     val colors = AloHiTheme.extendedColors
@@ -292,7 +295,7 @@ fun ChatBubble(
                 }
 
                 "video" -> {
-                    // Video: no bubble, just video thumbnail + play button + timestamp overlay
+                    // Video: Telegram-style bubble (thumbnail, size, duration, download icon)
                     val serverUrl = com.example.alohi.data.remote.ApiClient.BASE_URL.removeSuffix("api/")
                     val isRemoteRelative = !message.startsWith("http") && !message.startsWith("content://") && !message.startsWith("file://")
                     val videoUrl = if (isRemoteRelative) {
@@ -300,20 +303,66 @@ fun ChatBubble(
                     } else {
                         message
                     }
+                    val videoAttachment = attachments?.firstOrNull { it.fileType == "video" }
+                    val thumbnailUrl = videoAttachment?.thumbnailUrl?.let {
+                        if (!it.startsWith("http")) serverUrl + it.removePrefix("/") else it
+                    }
+
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp)),
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
-                            model = videoUrl,
+                            model = thumbnailUrl ?: videoUrl, // Prefer thumbnail to avoid loading full video
                             contentDescription = "Video",
                             modifier = Modifier
-                                .widthIn(max = maxBubbleWidth)
-                                .heightIn(max = 300.dp, min = 80.dp),
-                            contentScale = ContentScale.FillWidth,
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .clickable { onImageClick?.invoke(videoUrl) },
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         )
-                        // Loading or play button
+
+                        // Top-left overlay: Duration and Size
+                        if (videoAttachment?.fileSize != null || videoAttachment?.duration != null) {
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(8.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (videoAttachment.duration != null && videoAttachment.duration > 0) {
+                                    val mins = videoAttachment.duration / 60
+                                    val secs = videoAttachment.duration % 60
+                                    Text(
+                                        text = String.format("%d:%02d", mins, secs),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (videoAttachment.fileSize != null) {
+                                    if (videoAttachment.duration != null && videoAttachment.duration > 0) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(modifier = Modifier.size(3.dp).background(Color.White, CircleShape))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    val mb = videoAttachment.fileSize / (1024.0 * 1024.0)
+                                    val sizeStr = if (mb < 0.1) String.format("%.1f KB", videoAttachment.fileSize / 1024.0) else String.format("%.1f MB", mb)
+                                    Text(
+                                        text = sizeStr,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        // Center Status / Download Button
                         if (status == MessageStatus.SENDING) {
                             Box(
                                 modifier = Modifier
@@ -322,20 +371,28 @@ fun ChatBubble(
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
+                                    modifier = Modifier.size(36.dp),
                                     color = Color.White,
-                                    strokeWidth = 2.dp
+                                    strokeWidth = 3.dp
                                 )
                             }
                         } else {
-                            Icon(
-                                imageVector = Icons.Default.PlayCircleFilled,
-                                contentDescription = "Phát video",
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier.size(48.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayCircleFilled,
+                                    contentDescription = "Tải xuống video",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
                         }
-                        // Timestamp overlay
+
+                        // Bottom-right Timestamp overlay
                         if (isLastInGroup) {
                             Row(
                                 modifier = Modifier
@@ -440,29 +497,60 @@ fun ChatBubble(
                 }
 
                 "file" -> {
+                    val fileExtension = message.substringAfterLast(".").lowercase()
+                    val fileName = message.substringAfterLast("/").take(40) // Show more text
+                    
+                    val (iconBgColor, iconTint) = when (fileExtension) {
+                        "pdf" -> Color.Red.copy(alpha = 0.1f) to Color(0xFFE53935)
+                        "doc", "docx" -> Color.Blue.copy(alpha = 0.1f) to Color(0xFF1E88E5)
+                        "xls", "xlsx" -> Color.Green.copy(alpha = 0.1f) to Color(0xFF43A047)
+                        "ppt", "pptx" -> Color.Red.copy(alpha = 0.1f) to Color(0xFFE65100)
+                        else -> Color.Gray.copy(alpha = 0.2f) to Color.DarkGray
+                    }
+                    
+                    val serverUrl = com.example.alohi.data.remote.ApiClient.BASE_URL.removeSuffix("api/")
+                    val isRemoteRelative = !message.startsWith("http") && !message.startsWith("content://") && !message.startsWith("file://")
+                    val fileUrl = if (isRemoteRelative) {
+                        if (message.startsWith("/")) serverUrl + message.removePrefix("/") else serverUrl + message
+                    } else {
+                        message
+                    }
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onFileClick?.invoke(fileUrl) }
+                            .padding(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.InsertDriveFile,
-                            contentDescription = "File",
-                            tint = if (isFromMe) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(if (isFromMe) Color.White.copy(alpha = 0.2f) else iconBgColor, RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.InsertDriveFile,
+                                contentDescription = "File",
+                                tint = if (isFromMe) Color.White else iconTint,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = message.substringAfterLast("/").take(30),
+                                text = fileName,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = textColor,
-                                fontWeight = FontWeight.Medium,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Tệp đính kèm",
+                                text = "${fileExtension.uppercase()} Document",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isFromMe) Color.White.copy(alpha = 0.6f) else Color(0xFF8E8E93)
+                                color = if (isFromMe) Color.White.copy(alpha = 0.7f) else Color(0xFF8E8E93)
                             )
                         }
                     }

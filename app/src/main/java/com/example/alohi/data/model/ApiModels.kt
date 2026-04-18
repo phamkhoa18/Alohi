@@ -130,6 +130,8 @@ data class UserProfile(
     val lastSeen: String? = null,
     val createdAt: String? = null,
     val friendStatus: String? = null, // "none", "friend", "sent", "received"
+    val blockedUsers: List<String>? = null,
+    val hasBlockedMe: Boolean? = null,
 )
 
 data class DeviceSession(
@@ -277,6 +279,8 @@ data class MessageItem(
     val forwardedFrom: ForwardInfo? = null,
     // Local-only field for delivery status tracking (not from server JSON)
     val deliveryStatus: String? = null, // "sending", "sent", "delivered", "read"
+    // Attachments (for file/video sizes and info)
+    val attachments: List<com.example.alohi.data.model.AttachmentData>? = null,
 ) {
     /** Get display text: prefer content (from send response) then preview (from DB) */
     fun displayText(): String = content ?: preview ?: ""

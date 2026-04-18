@@ -4,6 +4,9 @@ import android.util.Log
 import com.example.alohi.data.local.TokenManager
 import io.socket.client.IO
 import io.socket.client.Socket
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.*
@@ -32,7 +35,17 @@ object SocketManager {
     private const val MAX_SOCKET_RETRIES = 3
 
     // The exact same backend IP used for Retrofit ApiClient
-    private const val SOCKET_SERVER_URL = "http://172.16.1.76:3000"
+    private const val SOCKET_SERVER_URL = "http://192.168.1.72:3000"
+
+    // ═══════════════════════════════════════════════════════
+    // Connection State
+    // ═══════════════════════════════════════════════════════
+    enum class SocketState {
+        CONNECTED, CONNECTING, DISCONNECTED, LOGGED_OUT
+    }
+    
+    private val _socketState = MutableStateFlow(SocketState.DISCONNECTED)
+    val socketState: StateFlow<SocketState> = _socketState.asStateFlow()
 
     // ═══════════════════════════════════════════════════════
     // SharedFlows — broadcast realtime events to ViewModels
@@ -44,6 +57,12 @@ object SocketManager {
 
     private val _friendRequestAccepted = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val friendRequestAccepted = _friendRequestAccepted.asSharedFlow()
+
+    private val _friendRequestCancelled = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val friendRequestCancelled = _friendRequestCancelled.asSharedFlow()
+
+    private val _friendRequestRejected = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val friendRequestRejected = _friendRequestRejected.asSharedFlow()
 
     // Message events
     private val _messageReceived = MutableSharedFlow<JSONObject>(extraBufferCapacity = 20)
@@ -116,11 +135,12 @@ object SocketManager {
         connectWithToken(tm)
     }
 
-    private fun cleanupSocket() {
+    private fun cleanupSocket(isIntentionalDisconnect: Boolean = false) {
         stopHeartbeat()
         socket?.off()
         socket?.disconnect()
         socket = null
+        _socketState.value = if (isIntentionalDisconnect) SocketState.LOGGED_OUT else SocketState.DISCONNECTED
     }
 
     private fun connectWithToken(tokenManager: TokenManager) {
@@ -146,6 +166,7 @@ object SocketManager {
                 on(Socket.EVENT_CONNECT) {
                     Log.d(TAG, "🔌 Connected to socket server: ${socket?.id()}")
                     socketRetryCount = 0 // Reset retry counter on success
+                    _socketState.value = SocketState.CONNECTED
                     startHeartbeat()
                 }
 
@@ -162,6 +183,16 @@ object SocketManager {
                 on("friend:request_accepted") { _ ->
                     Log.d(TAG, "🔔 Friend Request Accepted!")
                     _friendRequestAccepted.tryEmit("accepted")
+                }
+
+                on("friend:request_cancelled") { _ ->
+                    Log.d(TAG, "🔔 Friend Request Cancelled!")
+                    _friendRequestCancelled.tryEmit("cancelled")
+                }
+
+                on("friend:request_rejected") { _ ->
+                    Log.d(TAG, "🔔 Friend Request Rejected!")
+                    _friendRequestRejected.tryEmit("rejected")
                 }
 
                 // ── Message Events ──
@@ -340,12 +371,14 @@ object SocketManager {
                 // Disconnect handlers
                 on(Socket.EVENT_DISCONNECT) {
                     Log.e(TAG, "❌ Disconnected from socket server")
+                    _socketState.value = SocketState.DISCONNECTED
                     stopHeartbeat()
                 }
 
                 on(Socket.EVENT_CONNECT_ERROR) { args ->
                     val errorMsg = args.firstOrNull()?.toString() ?: "unknown"
                     Log.e(TAG, "Socket connect error: $errorMsg")
+                    _socketState.value = SocketState.DISCONNECTED
 
                     // Token might have been refreshed by REST 401 interceptor
                     // Always retry with fresh token from DataStore
@@ -369,6 +402,7 @@ object SocketManager {
             }
 
             socket?.connect()
+            _socketState.value = SocketState.CONNECTING
             Log.d(TAG, "🔌 Socket connecting to $SOCKET_SERVER_URL...")
 
         } catch (e: Exception) {
@@ -554,6 +588,6 @@ object SocketManager {
     }
 
     fun disconnect() {
-        cleanupSocket()
+        cleanupSocket(isIntentionalDisconnect = true)
     }
 }

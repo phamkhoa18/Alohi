@@ -63,6 +63,8 @@ import com.example.alohi.ui.components.ChatListItem
 import com.example.alohi.ui.components.StoryCircle
 import com.example.alohi.ui.theme.AloHiTheme
 import com.example.alohi.ui.viewmodel.MainViewModel
+import androidx.compose.runtime.collectAsState
+import com.example.alohi.data.remote.SocketManager.SocketState
 
 /**
  * AloHi Chat List Screen (Tab 1) — REAL API DATA ONLY
@@ -83,12 +85,12 @@ fun ChatListScreen(
     mainViewModel: MainViewModel,
     onChatClick: (String, String) -> Unit,
     onCreateGroupClick: () -> Unit = {},
-    onRefresh: () -> Unit = {},
     onNavigateToCreateStory: () -> Unit = {},
-    onNavigateToStoryViewer: (String) -> Unit = {}
+    onNavigateToStoryViewer: (String) -> Unit = {},
+    onSearchClick: () -> Unit = {},
 ) {
     val colors = AloHiTheme.extendedColors
-    var showSearch by remember { mutableStateOf(false) }
+    val uiState by mainViewModel.uiState.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -148,7 +150,7 @@ fun ChatListScreen(
                         .height(38.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.White.copy(alpha = 0.2f))
-                        .clickable { showSearch = true },
+                        .clickable { onSearchClick() },
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Row(
@@ -166,6 +168,46 @@ fun ChatListScreen(
                             text = "Tìm kiếm",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════
+            // NETWORK STATE BANNER (Zalo Style)
+            // ═══════════════════════════════════════════
+            AnimatedVisibility(
+                visible = uiState.socketState == SocketState.DISCONNECTED || uiState.socketState == SocketState.CONNECTING,
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFFFF0D4)) // Soft warning yellow
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    if (uiState.socketState == SocketState.CONNECTING) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            color = Color(0xFFFF9500), // Prominent warning orange
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Đang kết nối...",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFFF9500)
+                        )
+                    } else if (uiState.socketState == SocketState.DISCONNECTED) {
+                        Text(
+                            text = "Mất kết nối mạng. Đang thử lại...",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFFF3B30) // Red text to indicate error/offline state
                         )
                     }
                 }
@@ -303,6 +345,7 @@ fun ChatListScreen(
                                 avatarUrl = avatarUrl,
                                 isOnline = otherUser?.isOnline == true,
                                 unreadCount = unread,
+                                isMuted = myParticipant?.isMuted == true,
                                 isGroup = convo.type == "group",
                                 senderPrefix = senderPrefix,
                                 lastMessageIcon = lastMsgIcon,
@@ -319,27 +362,6 @@ fun ChatListScreen(
                     item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
             }
-        }
-
-        // ═══════════════════════════════════════════
-        // SEARCH OVERLAY — connected to real API
-        // ═══════════════════════════════════════════
-        AnimatedVisibility(
-            visible = showSearch,
-            enter = fadeIn() + slideInVertically { -it / 3 },
-            exit = fadeOut() + slideOutVertically { -it / 3 }
-        ) {
-            SearchOverlay(
-                mainViewModel = mainViewModel,
-                onDismiss = { showSearch = false },
-                onResultClick = { userId, name ->
-                    showSearch = false
-                    // Must create/find conversation first — userId is NOT a conversationId
-                    mainViewModel.createConversation(userId) { conversationId ->
-                        onChatClick(conversationId, name)
-                    }
-                }
-            )
         }
     }
 }

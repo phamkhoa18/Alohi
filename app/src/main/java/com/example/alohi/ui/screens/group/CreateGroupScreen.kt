@@ -99,7 +99,7 @@ fun CreateGroupScreen(
                 (it.phone?.contains(searchQuery) == true)
     }
 
-    val canCreate = groupName.isNotBlank() && selectedIds.size >= 2
+    val canCreate = groupName.isNotBlank() && selectedIds.size >= 1
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,

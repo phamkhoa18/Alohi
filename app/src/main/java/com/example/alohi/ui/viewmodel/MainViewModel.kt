@@ -44,6 +44,9 @@ data class MainUiState(
     val error: String? = null,
     val successMessage: String? = null,
 
+    // Connection state for UI Toasts
+    val socketState: com.example.alohi.data.remote.SocketManager.SocketState = com.example.alohi.data.remote.SocketManager.SocketState.DISCONNECTED,
+
     // Profile
     val currentUser: UserProfile? = null,
     val sessions: List<DeviceSession> = emptyList(),
@@ -140,17 +143,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun refreshAllData() {
         val cachedUserId = tokenManager.getUserIdSync()
-        if (!cachedUserId.isNullOrEmpty()) {
-            val cachedName = tokenManager.getUserDisplayNameSync() ?: "Bạn"
-            _uiState.value = _uiState.value.copy(
-                currentUser = UserProfile(id = cachedUserId, displayName = cachedName)
-            )
+        if (cachedUserId.isNullOrEmpty()) {
+            return
         }
+        
+        val cachedName = tokenManager.getUserDisplayNameSync() ?: "Bạn"
+        _uiState.value = _uiState.value.copy(
+            currentUser = UserProfile(id = cachedUserId, displayName = cachedName)
+        )
 
         loadProfile()
         syncConversationsFromApi()
         loadFriends()
         loadFriendRequests()
+        loadSentRequests()
         loadOnlineFriends()
         loadFriendSuggestions()
     }
@@ -200,6 +206,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ═══════════════════════════════════════════════════════
 
     private fun setupSocketListeners() {
+        // ── Track socket connection state ──
+        viewModelScope.launch {
+            SocketManager.socketState.collect { state ->
+                kotlinx.coroutines.delay(300) // Debounce rapid state changes
+                _uiState.value = _uiState.value.copy(socketState = state)
+            }
+        }
+
         // ── Friend request received ──
         viewModelScope.launch {
             SocketManager.friendRequestReceived.collect {
@@ -214,7 +228,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             SocketManager.friendRequestAccepted.collect {
                 loadFriends()
+                loadSentRequests()
+                loadFriendRequests()
                 syncConversationsFromApi()
+            }
+        }
+
+        // ── Friend request cancelled/rejected ──
+        viewModelScope.launch {
+            SocketManager.friendRequestCancelled.collect {
+                loadFriendRequests()
+                loadSentRequests()
+            }
+        }
+        viewModelScope.launch {
+            SocketManager.friendRequestRejected.collect {
+                loadFriendRequests()
+                loadSentRequests()
             }
         }
 
@@ -784,7 +814,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     loadSentRequests()
                 } else {
-                    _uiState.value = _uiState.value.copy(error = "Đã gửi lời mời trước đó")
+                    val errorStr = response.errorBody()?.string() ?: ""
+                    val errorMsg = if (response.code() == 403) "Không thể gửi lời mời (Bị chặn)"
+                    else if (response.code() == 409) "Đã gửi lời mời trước đó hoặc đã là bạn bè"
+                    else "Không thể gửi lời mời"
+                    _uiState.value = _uiState.value.copy(error = errorMsg)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "sendFriendRequest error", e)
@@ -828,6 +862,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 loadFriends()
             } catch (e: Exception) {
                 Log.e(TAG, "acceptFriendRequest error", e)
+            }
+        }
+    }
+
+    fun acceptFriendRequestByUserId(userId: String) {
+        viewModelScope.launch {
+            try {
+                api.acceptRequestByUserId(userId)
+                _uiState.value = _uiState.value.copy(
+                    successMessage = "Đã chấp nhận lời mời",
+                    searchResultUser = if (_uiState.value.searchResultUser?.id == userId)
+                        _uiState.value.searchResultUser?.copy(friendStatus = "friend")
+                    else _uiState.value.searchResultUser,
+                    viewedProfile = if (_uiState.value.viewedProfile?.id == userId)
+                        _uiState.value.viewedProfile?.copy(friendStatus = "friend")
+                    else _uiState.value.viewedProfile,
+                    searchResults = _uiState.value.searchResults.map {
+                        if (it.id == userId) it.copy(friendStatus = "friend") else it
+                    }
+                )
+                loadFriendRequests()
+                loadFriends()
+            } catch (e: Exception) {
+                Log.e(TAG, "acceptFriendRequestByUserId error", e)
             }
         }
     }

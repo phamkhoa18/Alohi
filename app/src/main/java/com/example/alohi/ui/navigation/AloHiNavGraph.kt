@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -206,6 +208,9 @@ fun AloHiNavGraph(
                 onNavigateToAddFriend = {
                     navController.navigate(Screen.AddFriend.route)
                 },
+                onNavigateToFriendRequests = {
+                    navController.navigate(Screen.FriendRequests.route)
+                },
                 onNavigateToCreateGroup = {
                     navController.navigate(Screen.CreateGroup.route)
                 },
@@ -278,6 +283,21 @@ fun AloHiNavGraph(
             com.example.alohi.ui.screens.conversation.ConversationDetailScreen(
                 conversationId = conversationId,
                 partnerName = name,
+                mainViewModel = mainViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToProfile = { userId ->
+                    navController.navigate(Screen.UserProfile.createRoute(userId))
+                }
+            )
+        }
+
+        // ═══════ FRIEND REQUESTS ═══════
+        composable(
+            route = Screen.FriendRequests.route,
+            enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) },
+            exitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) }
+        ) {
+            com.example.alohi.ui.screens.contacts.FriendRequestsScreen(
                 mainViewModel = mainViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )

@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.video.VideoFrameDecoder
 import com.example.alohi.data.local.TokenManager
 import com.example.alohi.data.remote.ApiClient
 import com.example.alohi.ui.navigation.AloHiNavGraph
@@ -25,6 +28,13 @@ import androidx.compose.ui.graphics.Color
 import com.example.alohi.ui.screens.call.CallScreen
 import com.example.alohi.ui.viewmodel.CallViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+
+
 class MainActivity : AppCompatActivity() {
     private val _currentIntent = kotlinx.coroutines.flow.MutableStateFlow<android.content.Intent?>(null)
 
@@ -47,6 +57,15 @@ class MainActivity : AppCompatActivity() {
         // Initialize API client with TokenManager
         val tokenManager = TokenManager(applicationContext)
         ApiClient.init(tokenManager)
+
+        // Initialize Coil 3 with VideoFrameDecoder
+        SingletonImageLoader.setSafe { ctx ->
+            ImageLoader.Builder(ctx)
+                .components {
+                    add(VideoFrameDecoder.Factory())
+                }
+                .build()
+        }
 
         // Retrieve and register FCM token
         com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
@@ -125,9 +144,8 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             com.example.alohi.ui.navigation.Screen.Onboarding.route
                         }
+                        
                         Box(modifier = Modifier.fillMaxSize()) {
-                            AloHiNavGraph(navController = navController, startDestination = startDest)
-                            
                             val callViewModel: CallViewModel = viewModel()
                             val callState by callViewModel.callState.collectAsState()
                             
@@ -160,6 +178,10 @@ class MainActivity : AppCompatActivity() {
                                         _currentIntent.value = currentIntent
                                     }
                                 }
+                            }
+
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AloHiNavGraph(navController = navController, startDestination = startDest)
                             }
 
                             if (callState.isRinging || callState.isActive) {

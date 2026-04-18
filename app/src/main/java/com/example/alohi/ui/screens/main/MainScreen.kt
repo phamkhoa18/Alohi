@@ -29,8 +29,17 @@ import com.example.alohi.ui.screens.chatlist.ChatListScreen
 import com.example.alohi.ui.screens.contacts.ContactsScreen
 import com.example.alohi.ui.screens.discover.DiscoverScreen
 import com.example.alohi.ui.screens.profile.ProfileScreen
+import com.example.alohi.ui.screens.chatlist.SearchOverlay
 import com.example.alohi.ui.theme.AloHiTheme
 import com.example.alohi.ui.viewmodel.MainViewModel
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 /**
  * AloHi Main Screen — Shell with Bottom Navigation
@@ -41,6 +50,7 @@ fun MainScreen(
     mainViewModel: MainViewModel,
     onChatClick: (String, String) -> Unit,
     onNavigateToAddFriend: () -> Unit = {},
+    onNavigateToFriendRequests: () -> Unit = {},
     onNavigateToCreateGroup: () -> Unit = {},
     onLogout: () -> Unit = {},
     onNavigateToCreateStory: () -> Unit = {},
@@ -51,6 +61,7 @@ fun MainScreen(
 
     val uiState by mainViewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
+    var showSearch by remember { mutableStateOf(false) }
     val tabs = BottomNavItem.entries
 
     val unreadCount = uiState.conversations.sumOf { convo ->
@@ -84,9 +95,9 @@ fun MainScreen(
                     mainViewModel = mainViewModel,
                     onChatClick = onChatClick,
                     onCreateGroupClick = onNavigateToCreateGroup,
-                    onRefresh = { mainViewModel.loadConversations() },
                     onNavigateToCreateStory = onNavigateToCreateStory,
-                    onNavigateToStoryViewer = onNavigateToStoryViewer
+                    onNavigateToStoryViewer = onNavigateToStoryViewer,
+                    onSearchClick = { showSearch = true }
                 )
                 1 -> ContactsScreen(
                     friends = uiState.friends,
@@ -100,11 +111,9 @@ fun MainScreen(
                         }
                     },
                     onAddFriendClick = onNavigateToAddFriend,
+                    onFriendRequestsClick = onNavigateToFriendRequests,
                     onCreateGroupClick = onNavigateToCreateGroup,
-                    onRefresh = {
-                        mainViewModel.loadFriends()
-                        mainViewModel.loadFriendRequests()
-                    }
+                    onSearchClick = { showSearch = true }
                 )
                 2 -> DiscoverScreen(mainViewModel)
                 3 -> {
@@ -121,6 +130,30 @@ fun MainScreen(
                     )
                 }
             }
+        }
+
+        // ═══════════════════════════════════════════
+        // GLOBAL SEARCH OVERLAY
+        // ═══════════════════════════════════════════
+        AnimatedVisibility(
+            visible = showSearch,
+            enter = fadeIn() + slideInVertically { -it / 3 },
+            exit = fadeOut() + slideOutVertically { -it / 3 }
+        ) {
+            SearchOverlay(
+                mainViewModel = mainViewModel,
+                onDismiss = { showSearch = false },
+                onUserClick = { userId, name ->
+                    showSearch = false
+                    mainViewModel.createConversation(userId) { conversationId ->
+                        onChatClick(conversationId, name)
+                    }
+                },
+                onChatClick = { conversationId, name ->
+                    showSearch = false
+                    onChatClick(conversationId, name)
+                }
+            )
         }
     }
 }
